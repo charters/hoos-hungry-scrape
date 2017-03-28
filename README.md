@@ -1,6 +1,6 @@
 hoos-hungry
 ==========
 
-Overly engineered web app that scrapes the dining hall hours and displays the ones that are currently open.
+Overly engineered web app that scrapes the dining hall hours and updates my Scaphold instance with the new hours.
 
-Using Node, Express, Request, Cheerio, Moment, and Angular.
+Using Node, Request, and Cheerio.
