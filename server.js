@@ -87,41 +87,44 @@ var updateAllHoursOfOperation = function(urlList) {
 
 	// For every item in the urlList
 	for (k=0; k < urlList.length; k++) {
+		addIndividualHourOfOperation(urlList[k]);
+	}
+}
 
-		var options = {
-			uri: urlList[k].url,
-			transform: function (body) {
-				return cheerio.load(body);
-			}
-		};
+function addIndividualHourOfOperation(diningHall) {
 
-		rp(options)
-		.then(function ($) {
-			// Process html like you would with jQuery...
-			var location = $('head > title').text().toString().split('-')[0].trim();
+	var options = {
+		uri: diningHall.url,
+		transform: function (body) {
+			return cheerio.load(body);
+		}
+	};
 
-			console.log("ALL HOURS FOR:" + location);
-			console.log()
-			$('.content-box').filter(function(i, elem){
-				for (k = 0; k < elem.children.length; k++) {
-					if (elem.children[k].type == 'text') {
+	rp(options)
+	.then(function ($) {
+		// Process html like you would with jQuery...
+		console.log('pre location trim');
+		var location = $('head > title').text().toString().split('-')[0].trim();
 
-						//EXAMPLE FORMATS
-						//Monday-Thursday: 7:00 am - 8:00 pm
-						//Friday: 7:00 am - 2:15 pm
-						//Saturday: 10:00 am - 2:00 pm
-						//Sunday: 10:00 am - 8:00 pm
-						var dayHours = elem.children[k].data.trim();
+		$('.content-box').filter(function(i, elem){
+			for (k = 0; k < elem.children.length; k++) {
+				if (elem.children[k].type == 'text') {
 
+					//EXAMPLE FORMATS
+					//Monday-Thursday: 7:00 am - 8:00 pm
+					//Friday: 7:00 am - 2:15 pm
+					//Saturday: 10:00 am - 2:00 pm
+					//Sunday: 10:00 am - 8:00 pm
+					var dayHours = elem.children[k].data.trim();
 
-						// If there is more than one hyphen in the string by comparing indices of "-"
-						// Format: Monday-Friday: 8:00 am - 2:00 am
-
+					console.log(elem.children[k].data);
+					// If there is more than one hyphen in the string by comparing indices of "-"
+					// Format: Monday-Friday: 8:00 am - 2:00 am
+					if (! dayHours.includes('Closed')){
 						if (dayHours.indexOf('-') != dayHours.lastIndexOf('-')){
 
 							var multiDay = dayHours.split('-');
 							// multiDay = ['firstDay', 'lastDay: 8:00am', '2:00 am']
-
 							var firstDay = translateDateToNum(multiDay[0].trim());
 							var lastDay = translateDateToNum(multiDay[1].split(":")[0].trim());
 
@@ -131,7 +134,9 @@ var updateAllHoursOfOperation = function(urlList) {
 
 
 								var hoursSplit = dayHours.split('-');
+								console.log('pre openTime trim');
 								var openTime = convertHourToFloat(hoursSplit[1].split(' ')[1] + ' ' + hoursSplit[1].split(' ')[2]);
+								console.log('pre closeTime trim');
 								var closeTime = convertHourToFloat(hoursSplit[2].trim());
 
 								// Back around list case; example Friday - Sunday
@@ -140,15 +145,18 @@ var updateAllHoursOfOperation = function(urlList) {
 									for (j=firstDay; j < 6; j++) {
 
 										// Send to scaphold at this point?
+										console.log("ID: " + diningHall.id);
 										console.log("Dining Hall: " + location);
 										console.log("Open Time: " + openTime);
 										console.log("Closing Time: " + closeTime);
 										console.log("Day of Week: " + j);
 										console.log(" ");
 
+
 										//sendToScaphold(j, openTime, closeTime, diningHallId, location);
 										//jsonHours[j].push({ "name": location, "open": openTime, "close": closeTime});
 									}
+									console.log("ID: " + diningHall.id);
 									console.log("Dining Hall: " + location);
 									console.log("Open Time: " + openTime);
 									console.log("Closing Time: " + closeTime);
@@ -161,6 +169,7 @@ var updateAllHoursOfOperation = function(urlList) {
 									for (j=firstDay; j <= lastDay; j++){
 
 										// send to scaphold at this point?
+										console.log("ID: " + diningHall.id);
 										console.log("Dining Hall: " + location);
 										console.log("Open Time: " + openTime);
 										console.log("Closing Time: " + closeTime);
@@ -195,7 +204,7 @@ var updateAllHoursOfOperation = function(urlList) {
 
 								//Send to scaphold at this point?
 								//sendToScaphold()
-
+								console.log("ID: " + diningHall.id);
 								console.log("Dining Hall: " + location);
 								console.log("Open Time: " + convertHourToFloat(openTime));
 								console.log("Closing Time: " + convertHourToFloat(closeTime));
@@ -211,14 +220,14 @@ var updateAllHoursOfOperation = function(urlList) {
 						}
 					}
 				}
-			});
-
-		})
-		.catch(function (err) {
-			// Crawling failed or Cheerio choked...
-			console.log(err);
+			}
 		});
-	}
+
+	})
+	.catch(function (err) {
+		// Crawling failed or Cheerio choked...
+		console.log(err);
+	});
 }
 
 function parseDiningHours(hoursOfOperationRawString){
