@@ -2,6 +2,10 @@ var request = require('request');
 var cheerio = require('cheerio');
 var rp = require('request-promise');
 
+function isBlank(str) {
+    return (!str || /^\s*$/.test(str));
+}
+
 function translateDateToNum(stringDay){
 	var numberDay;
 	switch(stringDay) {
@@ -50,6 +54,7 @@ function convertHourToFloat(simpleTime) {
 	}
 }
 
+
 var getAllDiningUrls = function () {
 	return new Promise(function(resolve, reject){
 
@@ -68,7 +73,7 @@ var getAllDiningUrls = function () {
 
 			$('#mainnavigation_0_RptNavigation_LnkItem_2').next().children().each(
 				function(i, element){
-					locationList.push({'url': baseUrl + $(this).children().attr('href'), 'id': i});
+					locationList.push({'url': baseUrl + $(this).children().attr('href'), 'id': i, 'name': $(this).children().attr('title')});
 				});
 			resolve(locationList);
 
@@ -87,11 +92,38 @@ var updateAllHoursOfOperation = function(urlList) {
 
 	// For every item in the urlList
 	for (k=0; k < urlList.length; k++) {
-		addIndividualHourOfOperation(urlList[k]);
+
+		var longId;
+		var diningHall = urlList[k];
+		var options = {
+	    method: 'GET',
+	    uri: 'https://us-west-2.api.scaphold.io/graphql/hooshungry',
+	    body: {
+				"query": "query GetDiningHallWithShort($shortId: Int!) {viewer {allDiningHalls(where: {shortId: {eq: $shortId}}) {edges {node {id}}}}}",
+				"variables": {
+				    "shortId": urlList[k].id
+
+	 			}
+	    },
+	    json: true // Automatically stringifies the body to JSON
+		};
+
+		rp(options)
+		    .then(function (parsedBody) {
+						console.log('view query successful');
+		        longId = parsedBody.data.viewer.allDiningHalls.edges[0].node.id;
+						addIndividualHourOfOperation(diningHall, longId);
+		    })
+		    .catch(function (err) {
+		        // POST failed...
+						console.log(err);
+		    });
+
 	}
+	
 }
 
-function addIndividualHourOfOperation(diningHall) {
+function addIndividualHourOfOperation(diningHall, longId) {
 
 	var options = {
 		uri: diningHall.url,
@@ -103,21 +135,18 @@ function addIndividualHourOfOperation(diningHall) {
 	rp(options)
 	.then(function ($) {
 		// Process html like you would with jQuery...
-		console.log('pre location trim');
-		var location = $('head > title').text().toString().split('-')[0].trim();
-
+		var locationName = $('.breadcrumb strong').text();
 		$('.content-box').filter(function(i, elem){
 			for (k = 0; k < elem.children.length; k++) {
 				if (elem.children[k].type == 'text') {
-
+					if (! isBlank(elem.children[k].data)) {
 					//EXAMPLE FORMATS
 					//Monday-Thursday: 7:00 am - 8:00 pm
 					//Friday: 7:00 am - 2:15 pm
 					//Saturday: 10:00 am - 2:00 pm
 					//Sunday: 10:00 am - 8:00 pm
-					var dayHours = elem.children[k].data.trim();
 
-					console.log(elem.children[k].data);
+					var dayHours = elem.children[k].data.trim();
 					// If there is more than one hyphen in the string by comparing indices of "-"
 					// Format: Monday-Friday: 8:00 am - 2:00 am
 					if (! dayHours.includes('Closed')){
@@ -134,9 +163,7 @@ function addIndividualHourOfOperation(diningHall) {
 
 
 								var hoursSplit = dayHours.split('-');
-								console.log('pre openTime trim');
 								var openTime = convertHourToFloat(hoursSplit[1].split(' ')[1] + ' ' + hoursSplit[1].split(' ')[2]);
-								console.log('pre closeTime trim');
 								var closeTime = convertHourToFloat(hoursSplit[2].trim());
 
 								// Back around list case; example Friday - Sunday
@@ -145,36 +172,48 @@ function addIndividualHourOfOperation(diningHall) {
 									for (j=firstDay; j < 6; j++) {
 
 										// Send to scaphold at this point?
-										console.log("ID: " + diningHall.id);
-										console.log("Dining Hall: " + location);
+										console.log("ID: " + longId);
+										console.log("Name: " + locationName);
 										console.log("Open Time: " + openTime);
 										console.log("Closing Time: " + closeTime);
 										console.log("Day of Week: " + j);
 										console.log(" ");
 
+										//createHoursWindowInScaphold(j, openTime, closeTime, longId);
+										if (closeTime <= 2) {
+											// send two hour windows
+										}
 
-										//sendToScaphold(j, openTime, closeTime, diningHallId, location);
-										//jsonHours[j].push({ "name": location, "open": openTime, "close": closeTime});
+
 									}
-									console.log("ID: " + diningHall.id);
-									console.log("Dining Hall: " + location);
+									console.log("ID: " + longId);
+									console.log("Name: " + locationName);
 									console.log("Open Time: " + openTime);
 									console.log("Closing Time: " + closeTime);
 									console.log("Day of Week: " + j);
 									console.log(" ");
-									//jsonHours[0].push({ "name": location, "open": openTime, "close": closeTime});
+
+									if (closeTime <= 2) {
+										// send two hour windows
+									}
+									//createHoursWindowInScaphold(j, openTime, closeTime, longId);
 
 								}
 								else {
 									for (j=firstDay; j <= lastDay; j++){
 
 										// send to scaphold at this point?
-										console.log("ID: " + diningHall.id);
-										console.log("Dining Hall: " + location);
+										console.log("ID: " + longId);
+										console.log("Name: " + locationName);
 										console.log("Open Time: " + openTime);
 										console.log("Closing Time: " + closeTime);
 										console.log("Day of Week: " + j);
 										console.log(" ");
+
+										if (closeTime <= 2) {
+											// send two hour windows
+										}
+										//createHoursWindowInScaphold(j, openTime, closeTime, longId);
 										//jsonHours[j].push({ "name": location, "open": openTime, "close": closeTime});
 
 									}
@@ -199,18 +238,19 @@ function addIndividualHourOfOperation(diningHall) {
 
 							if (! dayHours.includes('Closed')) {
 								var hoursSplit = dayHours.split('-');
-								var openTime = hoursSplit[0].split(' ')[1] + ' ' + hoursSplit[0].split(' ')[2];
-								var closeTime = hoursSplit[1].trim();
+								var openTime = convertHourToFloat(hoursSplit[0].split(' ')[1] + ' ' + hoursSplit[0].split(' ')[2]);
+								var closeTime = convertHourToFloat(hoursSplit[1].trim());
 
 								//Send to scaphold at this point?
 								//sendToScaphold()
-								console.log("ID: " + diningHall.id);
-								console.log("Dining Hall: " + location);
-								console.log("Open Time: " + convertHourToFloat(openTime));
-								console.log("Closing Time: " + convertHourToFloat(closeTime));
+								console.log("ID: " + longId);
+								console.log("Name: " + locationName);
+								console.log("Open Time: " + openTime);
+								console.log("Closing Time: " + closeTime);
 								console.log("Day of Week: " + dayNum);
 								console.log(" ");
 
+								//createHoursWindowInScaphold(dayNum, openTime, closeTime, longId);
 								//jsonHours[dayNum].push({ "name": location, "open": openTime, "close": closeTime});
 							}
 							else {
@@ -221,6 +261,7 @@ function addIndividualHourOfOperation(diningHall) {
 					}
 				}
 			}
+			}
 		});
 
 	})
@@ -230,28 +271,53 @@ function addIndividualHourOfOperation(diningHall) {
 	});
 }
 
-function parseDiningHours(hoursOfOperationRawString){
 
-	// look at one hours listing line at a time
+function createDiningHallsInScaphold(diningHallList) {//diningHallShortId, name, url) {
+
+	for (i = 0; i < diningHallList.length; i++) {
+
+		var options = {
+	    method: 'POST',
+	    uri: 'https://us-west-2.api.scaphold.io/graphql/hooshungry',
+	    body: {
+				"query": "mutation CreateDiningHall($input:CreateDiningHallInput!){createDiningHall(input: $input){changedEdge{node{id}}}}",
+				"variables": {
+					"input": {
+				    "name": diningHallList[i].name,
+				    "url": diningHallList[i].url,
+				    "shortId": diningHallList[i].id
+	  			}
+	 			}
+	    },
+	    json: true // Automatically stringifies the body to JSON
+		};
+
+		rp(options)
+		    .then(function (parsedBody) {
+		        console.log(parsedBody);
+		    })
+		    .catch(function (err) {
+		        // POST failed...
+						console.log(err);
+		    });
+
+	}
 
 }
 
-function sendToScaphold(dayOfWeek, openingHour, closingHour, diningHallId, diningHallName) {
+function createHoursWindowInScaphold(dayOfWeek, openingHour, closingHour, diningHallLongId) {
 
 	var options = {
     method: 'POST',
     uri: 'https://us-west-2.api.scaphold.io/graphql/hooshungry',
     body: {
-			"query": "mutation CreateHoursOfOperation($input:CreateHoursOfOperationInput!){createHoursOfOperation(input: $input){changedEdge{node{id}}}}",
+			"query": "mutation CreateHoursWindow($input:CreateHoursWindowInput!){createHoursWindow(input: $input){changedEdge{node{id}}}}",
 			"variables": {
 				"input": {
 			    "dayOfWeek": dayOfWeek,
 			    "openingHour": openingHour,
 			    "closingHour": closingHour,
-			    "location": {
-			      "id": diningHallId,
-			      "name": diningHallName
-	    		}
+			    "diningHallId": diningHallLongId
   			}
  			}
     },
@@ -260,11 +326,13 @@ function sendToScaphold(dayOfWeek, openingHour, closingHour, diningHallId, dinin
 
 	rp(options)
 	    .then(function (parsedBody) {
-	        console.log("Made entry to " + diningHallName + "successfully.");
+	        console.log(parsedBody);
 	    })
 	    .catch(function (err) {
 	        // POST failed...
 	    });
 }
+
+//getAllDiningUrls().then(createDiningHallsInScaphold);
 
 getAllDiningUrls().then(updateAllHoursOfOperation);
